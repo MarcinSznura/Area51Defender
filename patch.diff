@@ -1,0 +1,363 @@
+From ecfaef45e3eba7f604e9ec6433cae7a291e69948 Mon Sep 17 00:00:00 2001
+From: Mar-zin <marcinanyway@gmail.com>
+Date: Wed, 2 Oct 2019 18:48:44 +0200
+Subject: [PATCH] i am refactoring my code
+
+---
+ Assets/Scripts/AirStrike.cs          | 52 ++++++++++++---------
+ Assets/Scripts/AirStrikeMovement.cs  | 14 ++----
+ Assets/Scripts/AirStrikeTargeting.cs |  2 -
+ Assets/Scripts/EnemyDamage.cs        |  9 +++-
+ Assets/Scripts/EnemySpawner.cs       | 38 +++++++++-------
+ Assets/Scripts/Upgrademenu.cs        |  4 +-
+ Assets/Scripts/WaveHandler.cs        | 68 +++++++++++++++++++++++++++-
+ 7 files changed, 131 insertions(+), 56 deletions(-)
+
+diff --git a/Assets/Scripts/AirStrike.cs b/Assets/Scripts/AirStrike.cs
+index e929b81..eaf33ad 100644
+--- a/Assets/Scripts/AirStrike.cs
++++ b/Assets/Scripts/AirStrike.cs
+@@ -7,36 +7,44 @@ public class AirStrike : MonoBehaviour
+ {
+     [SerializeField] GameObject airStrikePrefab;
+     [SerializeField] GameObject napalmPrefab;
++    [SerializeField] float cooldownSkillTime = 10f;
++
++    public int airStrikeValue;
++    public int napalmValue;
++
++    bool isReadyAirStrike = true;
++    bool isReadyNapalm = true;
+ 
+-    public int isReadyAirStrike;
+-    public int isReadyNapalm;
+-    bool airStrikeReady = true;
+-    bool napalmReady = true;
+     private void Start()
+     {
+-        isReadyAirStrike = FindObjectOfType<Upgrademenu>().GetbaseAirStrike();
+-        isReadyNapalm = FindObjectOfType<Upgrademenu>().GetbaseNapalm();
++        airStrikeValue = FindObjectOfType<Upgrademenu>().GetbaseAirStrike();
++        napalmValue = FindObjectOfType<Upgrademenu>().GetbaseNapalm();
+     }
+-    // Update is called once per frame
++
+     void Update()
+     {
+-        if (isReadyAirStrike == 1 && airStrikeReady)
++        ProcessSkillActivations();
++    }
++
++    private void ProcessSkillActivations()
++    {
++        if (Input.GetKey(KeyCode.Alpha1))
+         {
+-            if (Input.GetKey(KeyCode.Alpha1))
++            if (isReadyAirStrike && airStrikeValue >= 1)
+             {
+                 StartAirStrike();
+-                StartCoroutine(Cooldown1());
++                StartCoroutine(AirStrikeCooldown());
+             }
+         }
+-        if (isReadyNapalm == 1 && napalmReady)
++
++        if (Input.GetKey(KeyCode.Alpha2))
+         {
+-            if (Input.GetKey(KeyCode.Alpha2))
++            if (isReadyNapalm && napalmValue >= 1)
+             {
+                 StartNapalm();
+-                StartCoroutine(Cooldown2());
++                StartCoroutine(NapalmCooldown());
+             }
+         }
+-
+     }
+ 
+     private void StartAirStrike()
+@@ -51,17 +59,17 @@ public class AirStrike : MonoBehaviour
+         napalmPlane.transform.parent = gameObject.transform;
+     }
+ 
+-    IEnumerator Cooldown1()
++    IEnumerator AirStrikeCooldown()
+     {
+-        airStrikeReady = false;
+-        yield return new WaitForSeconds(5);
+-        airStrikeReady = true;
++        isReadyAirStrike = false;
++        yield return new WaitForSeconds(cooldownSkillTime);
++        isReadyAirStrike = true;
+     }
+ 
+-    IEnumerator Cooldown2()
++    IEnumerator NapalmCooldown()
+     {
+-        napalmReady = false;
+-        yield return new WaitForSeconds(5);
+-        napalmReady = true;
++        isReadyNapalm = false;
++        yield return new WaitForSeconds(cooldownSkillTime);
++        isReadyNapalm = true;
+     }
+ }
+diff --git a/Assets/Scripts/AirStrikeMovement.cs b/Assets/Scripts/AirStrikeMovement.cs
+index fba49d4..0376724 100644
+--- a/Assets/Scripts/AirStrikeMovement.cs
++++ b/Assets/Scripts/AirStrikeMovement.cs
+@@ -4,26 +4,21 @@ using UnityEngine;
+ 
+ public class AirStrikeMovement : MonoBehaviour
+ {
++
+     Vector3 endPosition;
++
+     private void Start()
+     {
+         endPosition = new Vector3(transform.position.x, transform.position.y, transform.position.z + 350f);
+     }
+     
+-    // Start is called before the first frame update
+     void Update()
+-    {
+-        StartAirStrike();
+-    }
+-    private void StartAirStrike()
+     {
+         MoveTowardsWaypoint();
+     }
+-
++  
+     private void MoveTowardsWaypoint()
+     {
+-        Debug.Log(transform.position);
+-        Debug.Log(endPosition);
+         if (transform.position != endPosition)
+         {
+             transform.position = Vector3.MoveTowards(transform.position, endPosition, 2f);
+@@ -34,7 +29,4 @@ public class AirStrikeMovement : MonoBehaviour
+         }
+     }
+ 
+-
+-
+-
+ }
+diff --git a/Assets/Scripts/AirStrikeTargeting.cs b/Assets/Scripts/AirStrikeTargeting.cs
+index 4925cf3..af99c16 100644
+--- a/Assets/Scripts/AirStrikeTargeting.cs
++++ b/Assets/Scripts/AirStrikeTargeting.cs
+@@ -11,8 +11,6 @@ public class AirStrikeTargeting : MonoBehaviour
+ 
+     Transform targetEnemy;
+ 
+-
+-    // Update is called once per frame
+     void Update()
+     {
+         SetTargetEnemy();
+diff --git a/Assets/Scripts/EnemyDamage.cs b/Assets/Scripts/EnemyDamage.cs
+index 66dbe52..bfedd3f 100644
+--- a/Assets/Scripts/EnemyDamage.cs
++++ b/Assets/Scripts/EnemyDamage.cs
+@@ -20,10 +20,17 @@ public class EnemyDamage : MonoBehaviour
+     private void Start()
+     {
+         myAudioSource = GetComponent<AudioSource>();
+-        hitPoints = 2 + FindObjectOfType<WaveHandler>().wave;
++        int hpMultiplayer = FindObjectOfType<WaveHandler>().wave / 5;
++        hitPoints = 5 * (hpMultiplayer+1);
++        Debug.Log("My hp is: " + hitPoints);
+ 
+     }
+ 
++    public int GetEnemyHp()
++    {
++        return hitPoints;
++    }
++
+     void OnParticleCollision(GameObject other)
+ 
+     {
+diff --git a/Assets/Scripts/EnemySpawner.cs b/Assets/Scripts/EnemySpawner.cs
+index 8887f2b..60a5f92 100644
+--- a/Assets/Scripts/EnemySpawner.cs
++++ b/Assets/Scripts/EnemySpawner.cs
+@@ -12,23 +12,22 @@ public class EnemySpawner : MonoBehaviour
+ 
+     bool areYouDoneSpawning = false;
+ 
+-    int howManyRaiders = 1;
+-    int howManyGroups = 1;
+     float secondBetweenSpawns = 5f;
+ 
+     private void Start()
+     {
+         buttons.enabled = false;
+-        StartCoroutine(SpawnEnemy());
++        StartCoroutine(SpawnEnemy(2,1));
+     }
+ 
+-    public void SpawnAgain(int wave)  // executed for each spawner after button is pressed
++
++    public void SpawnAgain(int spawns, int soldiers)  // executed for each spawner after button is pressed
+     {
+         if (areYouDoneSpawning)
+         {
+             FindObjectOfType<Upgrademenu>().CalculateDamageOutput();
+             areYouDoneSpawning = false;
+-            StartCoroutine(SpawnEnemy());
++            StartCoroutine(SpawnEnemy(spawns,soldiers));
+             buttons.enabled = false;
+         }
+     }
+@@ -43,26 +42,31 @@ public class EnemySpawner : MonoBehaviour
+         else Debug.Log("Nie gotowy");
+     }
+ 
+-    IEnumerator SpawnEnemy()
++    IEnumerator SpawnEnemy(int spawns, int raiders)
+     {
+-       for (int i=0;i<howManyGroups;i++)
++       int raidersLeftToSpawn = raiders;
++       for (int i=0;i<spawns;i++)
+         {
+-           var newEnemy1 = Instantiate(enemyPrefab, new Vector3 (transform.position.x, transform.position.y-1.5f, transform.position.z-4), Quaternion.identity);
+-            newEnemy1.transform.parent = enemyParent.transform;
+-
+-            var newEnemy2 = Instantiate(enemyPrefab, new Vector3(transform.position.x+3, transform.position.y- 1.5f, transform.position.z), Quaternion.identity);
+-            newEnemy2.transform.parent = enemyParent.transform;
+-
+-            var newEnemy3 = Instantiate(enemyPrefab, new Vector3(transform.position.x, transform.position.y- 1.5f, transform.position.z+4), Quaternion.identity);
+-            newEnemy3.transform.parent = enemyParent.transform;
++            for(int j =0;j<5; j++)
++            {
++                for (int k = 0; k < 5; k++)
++                {
++                    if (raidersLeftToSpawn > 0)
++                    {
++                        var newEnemy = Instantiate(enemyPrefab, new Vector3(transform.position.x + (2 * j), transform.position.y - 1.5f, transform.position.z + (2 * k)), Quaternion.identity);
++                        newEnemy.transform.parent = enemyParent.transform;
++                        raidersLeftToSpawn--;
++                    }
++                }
++                   
++            }
+ 
+             GetComponent<AudioSource>().PlayOneShot(spawnEnemySFX);
+             
+             yield return new WaitForSeconds(secondBetweenSpawns);
+-            Debug.Log("zyieldowalem");
++            raidersLeftToSpawn = raiders;
+         }
+         areYouDoneSpawning = true;
+-        Debug.Log("juz jestem ready");
+         
+     }
+ 
+diff --git a/Assets/Scripts/Upgrademenu.cs b/Assets/Scripts/Upgrademenu.cs
+index 95b3ede..c8de2f3 100644
+--- a/Assets/Scripts/Upgrademenu.cs
++++ b/Assets/Scripts/Upgrademenu.cs
+@@ -290,7 +290,7 @@ public class Upgrademenu : MonoBehaviour
+             baseAirStrikeText.text = baseAirStrike.ToString();
+             expText.text = "EXP: " + exp.ToString();
+             cost_baseAirStrikeText.text = (2 * baseAirStrike).ToString();
+-            FindObjectOfType<AirStrike>().isReadyAirStrike = baseAirStrike;
++            FindObjectOfType<AirStrike>().airStrikeValue = baseAirStrike;
+         }
+     }
+ 
+@@ -303,7 +303,7 @@ public class Upgrademenu : MonoBehaviour
+             baseNapalmText.text = baseNapalm.ToString();
+             expText.text = "EXP: " + exp.ToString();
+             cost_baseNapalmText.text = (2 * baseNapalm).ToString();
+-            FindObjectOfType<AirStrike>().isReadyNapalm = baseNapalm;
++            FindObjectOfType<AirStrike>().napalmValue = baseNapalm;
+         }
+     }
+ 
+diff --git a/Assets/Scripts/WaveHandler.cs b/Assets/Scripts/WaveHandler.cs
+index 5b8c30e..3c8c707 100644
+--- a/Assets/Scripts/WaveHandler.cs
++++ b/Assets/Scripts/WaveHandler.cs
+@@ -23,8 +23,74 @@ public class WaveHandler : MonoBehaviour
+         waveNumberText.text = "Wave: " + wave.ToString();
+         foreach (EnemySpawner span in enemySpawners)
+         {
+-            span.SpawnAgain(wave);
++            span.SpawnAgain(SpawnsInWave(),RaidersInSpawn());
+             Debug.Log("Respie moby");
+         }
+     }
++
++     int SpawnsInWave()
++    {
++        switch ( (wave-1) / 10)
++        {
++            case 0:
++                return 2;
++
++            case 1:
++                return 3;
++
++            case 2:
++                return 4;
++
++            case 3:
++                return 5;
++
++            case 4:
++                return 6;
++
++            case 5:
++                return 7;
++
++            case 6:
++                return 8;
++
++            case 7:
++                return 9;
++
++            case 8:
++                return 10;
++
++            case 9:
++                return 11;
++
++            default:
++                return 12;
++        }
++    }
++
++    int RaidersInSpawn()
++    {
++        if (wave < 3) return 1;
++        if (wave < 5) return 2;
++        if (wave < 7) return 3;
++        if (wave < 10) return 4;
++        if (wave < 12) return 5;
++        if (wave < 14) return 6;
++        if (wave < 16) return 7;
++        if (wave < 19) return 8;
++        if (wave < 23) return 9;
++        if (wave < 26) return 10;
++        if (wave < 29) return 11;
++        if (wave < 32) return 12;
++        if (wave < 36) return 13;
++        if (wave < 38) return 14;
++        if (wave < 44) return 15;
++        if (wave < 48) return 16;
++        if (wave < 52) return 17;
++        if (wave < 56) return 18;
++        if (wave < 60) return 19;
++        if (wave < 70) return 20;
++
++        return 25;
++    }
++
+ }
+-- 
+2.20.1.windows.1
+

@@ -1,0 +1,2 @@
+R:\_Repo\Area 51 Defence\obj\Debug\Assembly-CSharp.csprojAssemblyReference.cache
+R:\_Repo\Area 51 Defence\obj\Debug\Assembly-CSharp.csproj.CoreCompileInputs.cache
